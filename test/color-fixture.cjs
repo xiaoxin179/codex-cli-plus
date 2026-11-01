@@ -1,0 +1,10 @@
+const { styleText } = require('node:util');
+console.log(`NO_COLOR=${process.env.NO_COLOR === undefined ? 'unset' : process.env.NO_COLOR}`);
+console.log(`COLOR_DEPTH=${process.stdout.getColorDepth()}`);
+console.log(styleText('green', 'AUTO_COLOR', { stream: process.stdout, validateStream: true }));
+console.log('\x1b[31mANSI16_RED\x1b[0m');
+console.log('\x1b[91mANSI16_BRIGHT_RED\x1b[0m');
+console.log('\x1b[38;5;196mANSI256_RED\x1b[0m');
+console.log('\x1b[38;2;18;171;52mTRUECOLOR_GREEN\x1b[0m');
+console.log('\x1b[1;3;4mBOLD_ITALIC_UNDERLINE\x1b[0m');
+console.log('COLOR_FIXTURE_DONE');

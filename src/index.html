@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Codex CLI Plus</title>
+<link rel="stylesheet" href="../node_modules/@xterm/xterm/css/xterm.css">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<nav class="tabbar" aria-label="会话标签">
+<img class="avatar" src="../assets/icon.png" width="26" height="26" alt="Codex CLI Plus">
+<button id="home-tab" class="selected">首页</button>
+<div id="tabs" role="tablist" aria-label="终端会话"></div>
+<button id="new-tab" class="icon-button" title="新建终端 Ctrl+Shift+T" aria-label="新建终端"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+<button id="new-window" title="新窗口 Ctrl+Shift+N">新窗口</button>
+<details id="settings-menu"><summary title="设置" aria-label="设置"><svg viewBox="0 0 24 24"><path d="M5 7h14M5 12h14M5 17h14"/></svg></summary><div class="menu"><button id="icon-button">更换图标</button></div></details>
+</nav>
+<main id="workspace">
+<section id="home">
+<div class="home-heading"><div><h1>常用会话</h1><p>保存常用启动方式，随时打开。每次打开都是独立会话。</p></div><button id="blank-terminal" class="primary">新建终端</button></div>
+<div id="profiles"></div>
+<button id="add-profile" class="add-profile"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>添加常用会话</button>
+<p id="empty-hint">还没有常用会话。填写名称即可保存，工作目录和启动命令均可留空。</p>
+</section>
+<div id="panels"></div>
+</main>
+<footer><span id="status" role="status">首页</span><span id="cwd"></span><span id="font-size" title="Ctrl+鼠标滚轮调整字号"></span></footer>
+<dialog id="profile-dialog">
+<form id="profile-form"><h2 id="profile-heading">添加常用会话</h2>
+<label>会话名称<input id="profile-name" maxlength="80" placeholder="可自定义；填写会话 ID 后可留空"></label>
+<label>会话 ID <span class="muted">恢复 Codex 会话时填写</span><input id="profile-session-id" maxlength="36" autocomplete="off" spellcheck="false" placeholder="例如：12345678-1234-4abc-8def-123456789abc"></label>
+<label>工作目录 <span class="muted">可选</span><div class="directory-field"><input id="profile-cwd" placeholder="留空使用默认目录，恢复已有会话可不填"><button type="button" id="browse-directory">选择目录</button></div></label>
+<label>启动命令 <span class="muted">可选</span><input id="profile-command" maxlength="4096" placeholder="留空进入命令行，例如 codex 或 npm run dev"></label>
+<p class="muted">填写会话 ID 后自动生成恢复命令，无需指定工作目录。点击“打开”时才执行。</p>
+<p id="profile-error" role="alert"></p>
+<div class="dialog-actions"><button type="button" id="cancel-profile">取消</button><button class="primary" id="save-profile" type="submit">保存</button></div>
+</form></dialog>
+<script src="../node_modules/@xterm/xterm/lib/xterm.js"></script>
+<script src="../node_modules/@xterm/addon-fit/lib/addon-fit.js"></script>
+<script src="terminal-utils.js"></script>
+<script src="renderer.js"></script>
+</body></html>

@@ -1,0 +1,3 @@
+Generated with the built-in image_gen tool.
+
+Use case: stylized-concept. Asset type: Windows desktop app taskbar icon, square anime character avatar. Primary request: a beautiful original anime young adult woman avatar with short silver hair, teal eyes, small dark headphones, confident gentle smile. High quality polished Japanese anime cel shading, clean bold shapes and strong silhouette, face fills most of the square, head and hint of shoulders, centered symmetrical readable composition. Deep indigo circular backdrop, turquoise accents, no scene or tiny details. Designed to remain identifiable at 32x32 pixels. No text, no letters, no watermark, one character only. Transparent outside the circular avatar.
