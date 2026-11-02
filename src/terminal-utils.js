@@ -12,8 +12,9 @@
   }
   function cleanTitle(value) {
     const clean = String(value).replace(/[\u0000-\u001f\u007f-\u009f]/g, '').trim();
-    // The terminal renders its own activity indicator; hide Codex's title spinner.
-    return Array.from(clean.replace(/^[\u2800-\u28ff]+\s*/, '').trim()).slice(0, 240).join('');
+    // Codex can prefix a title with both a status bullet and a Braille spinner.
+    // Strip the entire leading sequence; the app renders its own indicator.
+    return Array.from(clean.replace(/^(?:[\u25cf\u2800-\u28ff]+\s*)+/, '').trim()).slice(0, 240).join('');
   }
   return { resolveLaunch, cleanTitle };
 });

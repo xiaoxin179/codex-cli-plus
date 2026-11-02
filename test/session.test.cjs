@@ -17,7 +17,12 @@ test('a session ID generates the exact resume command, including legacy ID-only 
 test('strip only leading Codex spinner frames, preserving the thread name', () => {
   for (const frame of '⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏') {
     assert.equal(cleanTitle(frame+' 获取当前会话 ID | 项目'), '获取当前会话 ID | 项目');
+    assert.equal(cleanTitle('● '+frame+' 获取当前会话 ID | 项目'), '获取当前会话 ID | 项目');
+    assert.equal(cleanTitle(frame+' ● 获取当前会话 ID | 项目'), '获取当前会话 ID | 项目');
   }
+  assert.equal(cleanTitle('● 总结面试语料 | 项目'), '总结面试语料 | 项目');
+  assert.equal(cleanTitle('● ⠇'), '');
+  assert.equal(cleanTitle('项目 ● 名称'), '项目 ● 名称');
   assert.equal(cleanTitle('正常标题'), '正常标题');
   assert.equal(cleanTitle('项目⠇名称'), '项目⠇名称');
   assert.equal(cleanTitle('⠇'), '');

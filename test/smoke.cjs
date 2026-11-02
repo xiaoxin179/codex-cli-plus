@@ -150,6 +150,43 @@ app.whenReady().then(async () => {
     fs.writeFileSync(path.join(__dirname,'../artifacts/terminal-v3.png'),(await win.webContents.capturePage()).toPNG());
   }
   await waitFor(win, `!sessions.get('${second.id}').activity.busy`, 'agent progress stop');
+  // Deliver real Codex lifecycle signals to a background terminal. The bell
+  // must survive the following idle/prompt and clear only on viewing or work.
+  const notificationViewer = await win.webContents.executeJavaScript('createSession().then(s => s.id)');
+  const completionCommand = "[Console]::Write(([string][char]27)+']7501;state=working'+[char]7); Start-Sleep -Milliseconds 700; [Console]::Write(([string][char]27)+']7501;state=done'+[char]7); [Console]::Write(([string][char]27)+']7501;state=idle'+[char]7)\r";
+  await win.webContents.executeJavaScript(`api.input(${JSON.stringify(second.id)}, ${JSON.stringify(completionCommand)})`);
+  await waitFor(win, `sessions.get('${second.id}').activity.busy`, 'background AI working');
+  assert.equal(await win.webContents.executeJavaScript(`sessions.get('${second.id}').completionBell.hidden`), true);
+  await waitFor(win, `sessions.get('${second.id}').unreadCompletion`, 'background AI completion bell');
+  assert.equal(await win.webContents.executeJavaScript(`getComputedStyle(sessions.get('${second.id}').completionBell).display !== 'none'`), true);
+  assert.match(await win.webContents.executeJavaScript(`sessions.get('${second.id}').selectButton.getAttribute('aria-label')`), /回复已完成，未查看/);
+  assert.equal(await win.webContents.executeJavaScript(`getComputedStyle(sessions.get('${notificationViewer}').tab).backgroundColor`), 'rgb(255, 255, 255)');
+  assert.equal(await win.webContents.executeJavaScript(`getComputedStyle(sessions.get('${notificationViewer}').selectButton).color`), 'rgb(22, 26, 34)');
+  if (process.env.SMOKE_SCREENSHOT === '1') {
+    fs.writeFileSync(path.join(__dirname, '../artifacts/tabs-v0.3.11.png'), (await win.webContents.capturePage()).toPNG());
+  }
+  await win.webContents.executeJavaScript(`selectSession('${second.id}')`);
+  assert.equal(await win.webContents.executeJavaScript(`sessions.get('${second.id}').completionBell.hidden`), true);
+  assert.equal(await win.webContents.executeJavaScript(`getComputedStyle(sessions.get('${second.id}').tab).backgroundColor`), 'rgb(255, 255, 255)');
+  assert.notEqual(await win.webContents.executeJavaScript(`getComputedStyle(sessions.get('${notificationViewer}').tab).backgroundColor`), 'rgb(255, 255, 255)');
+  await win.webContents.executeJavaScript(`(() => {
+    const s = sessions.get('${second.id}');
+    updateActivity(s, {busy:false, kind:'agent-done', label:'已完成'});
+    if (s.unreadCompletion) throw new Error('Viewed completion must not notify');
+    selectSession('${notificationViewer}');
+    updateActivity(s, {busy:true, kind:'agent-working', label:'工作中'});
+    updateActivity(s, {busy:false, kind:'agent-blocked', label:'等待授权'});
+    if (s.unreadCompletion) throw new Error('Blocked work must not notify completion');
+    updateActivity(s, {busy:false, kind:'agent-done', label:'已完成'});
+    selectSession(null);
+    if (!s.unreadCompletion) throw new Error('Home must preserve unseen completion');
+    updateActivity(s, {busy:true, kind:'agent-working', label:'工作中'});
+    if (s.unreadCompletion || !s.completionBell.hidden) throw new Error('New work must clear completion');
+    updateActivity(s, {busy:false, kind:'agent-error', label:'运行失败'});
+    if (s.unreadCompletion) throw new Error('Failed work must not notify completion');
+    selectSession('${second.id}');
+  })()`);
+  await win.webContents.executeJavaScript(`closeSession('${notificationViewer}', true)`);
   await win.webContents.executeJavaScript(`api.deleteProfile('${saved.id}')`);
   await waitFor(other, 'settings.profiles.length === 0', 'cross-window profile sync');
   const resumeId = '12345678-1234-4abc-8def-123456789abc';

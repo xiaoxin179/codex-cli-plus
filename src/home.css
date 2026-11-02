@@ -18,6 +18,15 @@ button:focus-visible, summary:focus-visible { outline-color: var(--home-accent);
 .tabbar button, summary { color: #a5afc0; }
 .tabbar button:hover, summary:hover { background: #ffffff09; color: #edf1f8; }
 .tabbar .selected { color: var(--home-accent); }
+.tabbar .tab.selected { background: #ffffff; color: #161a22; }
+.tabbar .tab.selected .tab-select { color: #161a22; }
+.tabbar .tab.selected .tab-select:hover { background: #eef1f5; color: #161a22; }
+.tabbar .tab.selected .close-tab { color: #566174; }
+.tabbar .tab.selected .close-tab:hover { background: #e3e8ef; color: #161a22; }
+.tab.selected .indicator { color: #167653; }
+.tab.selected .indicator::before { background: #566174; opacity: 1; }
+.completion-bell { display: inline-flex; width: 15px; height: 15px; flex-shrink: 0; color: var(--home-accent); }
+.completion-bell svg { width: 15px; height: 15px; }
 .close-tab { margin-right: 3px; border-radius: 7px; }
 #new-window { font-size: 12px; }
 .menu { border-radius: 12px; background: #242a36; border-color: #ffffff14; box-shadow: 0 12px 32px #0005; padding: 6px; }

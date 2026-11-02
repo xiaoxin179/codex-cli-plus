@@ -37,17 +37,31 @@ function selectSession(id) {
     session.panel.hidden = session.id !== id;
     session.tab.classList.toggle('selected', session.id === id);
     session.selectButton.setAttribute('aria-selected', String(session.id === id));
+    if (session.id === id) session.unreadCompletion = false;
+    updateTabNotification(session);
   }
   api.active(id);
   updateStatus();
   requestAnimationFrame(() => { refit(); activeSession()?.term.focus(); });
 }
+function updateTabNotification(session) {
+  session.completionBell.hidden = !session.unreadCompletion;
+  session.indicator.hidden = session.unreadCompletion;
+  session.tab.classList.toggle('has-completion', session.unreadCompletion);
+  const notification = session.unreadCompletion ? ' · 回复已完成，未查看' : '';
+  session.selectButton.title = `${session.title} · ${session.activity.label}${notification}\n${session.cwd}`;
+  session.selectButton.setAttribute('aria-label', `${session.title} · ${session.activity.label}${notification}`);
+}
 function updateActivity(session, activity) {
+  const completed = activity.kind === 'agent-done' ||
+    (session.activity.busy && activity.kind === 'reported' && !activity.busy);
+  if (activity.busy) session.unreadCompletion = false;
+  else if (completed && session.id !== activeId) session.unreadCompletion = true;
   session.activity = activity;
   session.indicator.classList.toggle('busy', activity.busy);
   session.indicator.classList.toggle('ended', !session.alive);
   session.indicator.title = activity.label;
-  session.selectButton.title = `${session.title} · ${activity.label}\n${session.cwd}`;
+  updateTabNotification(session);
   if (session.id === activeId) updateStatus();
 }
 function updateTitle(session, title) {
@@ -56,7 +70,7 @@ function updateTitle(session, title) {
   session.label.textContent = session.title;
   session.panel.setAttribute('aria-label', session.title);
   session.closeButton.setAttribute('aria-label', `关闭 ${session.title}`);
-  session.selectButton.title = `${session.title} · ${session.activity.label}\n${session.cwd}`;
+  updateTabNotification(session);
   api.setTitle(session.id, session.title);
 }
 function queue(id, event) {
@@ -108,11 +122,14 @@ async function createSession(profile) {
     const number = [...sessions.values()].filter(s => s.baseTitle === result.title).length + 1;
     const title = number > 1 ? `${result.title} · ${number}` : result.title;
     label.textContent = title;
-    selectButton.append(indicator, label);
+    const completionBell = document.createElement('span'); completionBell.className = 'completion-bell'; completionBell.hidden = true;
+    completionBell.setAttribute('aria-hidden', 'true');
+    completionBell.innerHTML = '<svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg>';
+    selectButton.append(indicator, completionBell, label);
     const close = document.createElement('button'); close.className = 'close-tab'; close.setAttribute('aria-label', `关闭 ${title}`);
     close.innerHTML = '<svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg>';
     tab.append(selectButton, close); element('tabs').append(tab);
-    const session = { ...result, baseTitle: result.title, initialTitle: title, title, panel, term, fit, tab, indicator, label, closeButton: close, selectButton, alive: true, activity: { busy: false, kind: 'starting', label: '启动中' } };
+    const session = { ...result, baseTitle: result.title, initialTitle: title, title, panel, term, fit, tab, indicator, completionBell, unreadCompletion: false, label, closeButton: close, selectButton, alive: true, activity: { busy: false, kind: 'starting', label: '启动中' } };
     sessions.set(result.id, session);
     selectButton.onclick = () => selectSession(result.id);
     close.onclick = () => closeSession(result.id).catch(report);

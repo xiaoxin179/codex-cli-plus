@@ -1,6 +1,6 @@
 {
   "name": "codex-cli-plus",
-  "version": "0.3.10",
+  "version": "0.3.12",
   "description": "A Windows desktop companion for Codex CLI: saved sessions, parallel terminals, and live activity status.",
   "main": "src/main.cjs",
   "author": "",
