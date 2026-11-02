@@ -1,4 +1,4 @@
-:root { color-scheme: dark; font-family: 'Cascadia Mono', Consolas, monospace; background: #0B0C0A; color: #e6e8e2; font-size: 13px; }
+:root { color-scheme: dark; font-family: 'Helvetica Neue', 'Segoe UI', 'Microsoft YaHei UI', 'Microsoft YaHei', sans-serif; background: #0B0C0A; color: #e6e8e2; font-size: 13px; }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 body { margin: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }

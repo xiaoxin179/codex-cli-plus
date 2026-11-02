@@ -7,6 +7,7 @@
 <title>Codex CLI Plus</title>
 <link rel="stylesheet" href="../node_modules/@xterm/xterm/css/xterm.css">
 <link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="home.css">
 </head>
 <body>
 <nav class="tabbar" aria-label="会话标签">
@@ -19,10 +20,14 @@
 </nav>
 <main id="workspace">
 <section id="home">
-<div class="home-heading"><div><h1>常用会话</h1><p>保存常用启动方式，随时打开。每次打开都是独立会话。</p></div><button id="blank-terminal" class="primary">新建终端</button></div>
+<div class="home-inner">
+<div class="home-heading"><div><div class="home-brand">Codex CLI Plus</div><h1>回到你的工作现场。</h1><p>常用会话，随时继续。每次打开都是独立终端。</p></div><button id="blank-terminal" class="primary"><svg viewBox="0 0 24 24"><path d="m5 6 6 6-6 6M13 18h6"/></svg>新建终端<kbd>Ctrl ⇧ T</kbd></button></div>
+<div class="section-toolbar"><div class="section-title"><h2>常用会话</h2><span id="profile-count">0</span></div><div class="profile-tools"><div class="search-field"><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></svg><input id="profile-search" type="search" aria-label="搜索常用会话" placeholder="搜索会话、目录或命令"></div><button id="add-profile" class="add-profile"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>添加会话</button></div></div>
 <div id="profiles"></div>
-<button id="add-profile" class="add-profile"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>添加常用会话</button>
-<p id="empty-hint">还没有常用会话。填写名称即可保存，工作目录和启动命令均可留空。</p>
+<div id="empty-hint"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4zM8 9l3 3-3 3M13 15h3"/></svg><h2>把常用会话放在这里</h2><p>添加一个会话 ID，下次一键继续。也可以保存常用的命令行。</p><button id="empty-add-profile" class="primary">添加第一个会话</button></div>
+<p id="search-empty" hidden>没有找到匹配的会话，请试试其他关键词。</p>
+<div class="home-notes"><span>在标签页中并行工作，也可以打开独立窗口。</span><span><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>N</kbd> 新窗口</span></div>
+</div>
 </section>
 <div id="panels"></div>
 </main>

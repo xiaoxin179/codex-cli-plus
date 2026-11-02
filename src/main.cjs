@@ -43,7 +43,7 @@ function createWindow(profile) {
   const win = new BrowserWindow({
     width: 1180, height: 800, minWidth: 760, minHeight: 480,
     title: 'Codex CLI Plus', icon: settings.icon && fs.existsSync(settings.icon) ? settings.icon : path.join(__dirname, '../assets/icon.ico'),
-    backgroundColor: '#0B0C0A', autoHideMenuBar: true,
+    backgroundColor: '#14171f', autoHideMenuBar: true,
     webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true }
   });
   const state = { win, sessions: new Map(), profile, busy: false, activeId: null };

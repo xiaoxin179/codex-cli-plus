@@ -30,6 +30,7 @@ function updateStatus() {
 }
 function selectSession(id) {
   activeId = id;
+  document.body.classList.toggle('home-visible', !id);
   element('home').hidden = Boolean(id);
   element('home-tab').classList.toggle('selected', !id);
   for (const session of sessions.values()) {
@@ -151,17 +152,41 @@ function button(text, action, className = '') {
 function renderProfiles() {
   element('profiles').replaceChildren();
   element('empty-hint').hidden = settings.profiles.length > 0;
-  for (const profile of settings.profiles) {
-    const card = document.createElement('article'); card.className = 'profile';
-    const title = document.createElement('h2'); title.textContent = profile.name;
+  element('profile-count').textContent = settings.profiles.length;
+  const query = element('profile-search').value.trim().toLocaleLowerCase();
+  const profiles = settings.profiles.filter(profile => [profile.name, profile.cwd, profile.command, profile.sessionId].some(value => value?.toLocaleLowerCase().includes(query)));
+  element('search-empty').hidden = !settings.profiles.length || profiles.length > 0;
+  for (const profile of profiles) {
+    const card = document.createElement('article'); card.className = `profile${profile.sessionId ? ' codex-profile' : profile.command ? ' command-profile' : ''}`;
+    const heading = document.createElement('div'); heading.className = 'profile-heading';
+    const icon = document.createElement('div'); icon.className = 'profile-icon';
+    icon.innerHTML = profile.sessionId
+      ? '<svg viewBox="0 0 24 24"><path d="m8 7-5 5 5 5M16 7l5 5-5 5M14 4l-4 16"/></svg>'
+      : profile.command
+        ? '<svg viewBox="0 0 24 24"><path d="m9 5 10 7-10 7z"/></svg>'
+        : '<svg viewBox="0 0 24 24"><path d="m6 7 5 5-5 5M13 17h5"/></svg>';
+    const names = document.createElement('div'); names.className = 'profile-names';
+    const title = document.createElement('h2'); title.textContent = profile.name; title.title = profile.name;
+    const kind = document.createElement('span'); kind.className = 'profile-kind'; kind.textContent = profile.sessionId ? 'Codex 会话' : profile.command ? '自定义命令' : 'PowerShell';
+    names.append(title, kind); heading.append(icon, names);
+    const tools = document.createElement('div'); tools.className = 'card-tools';
+    const edit = button('', () => editProfile(profile), 'quiet');
+    edit.innerHTML = '<svg viewBox="0 0 24 24"><path d="m15 4 5 5M4 20l5-1L20 8a2 2 0 0 0-5-5L4 14z"/></svg>';
+    edit.title = '编辑会话'; edit.setAttribute('aria-label', `编辑 ${profile.name}`);
+    const remove = button('', () => {
+      if (window.confirm(`删除常用会话“${profile.name}”？已打开的终端不受影响。`)) return api.deleteProfile(profile.id);
+    }, 'quiet delete-profile');
+    remove.innerHTML = '<svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 10v7M14 10v7"/></svg>';
+    remove.title = '删除会话'; remove.setAttribute('aria-label', `删除 ${profile.name}`);
+    tools.append(edit, remove); heading.append(tools);
     const directory = document.createElement('p'); directory.textContent = profile.cwd || '未指定工作目录';
-    const command = document.createElement('p'); command.className = 'command'; command.textContent = profile.command || 'PowerShell 命令行';
+    directory.className = 'profile-directory'; directory.textContent = profile.cwd || '使用默认工作目录'; directory.title = directory.textContent;
+    const command = document.createElement('p'); command.className = 'command'; command.textContent = profile.command || '进入 PowerShell 命令行'; command.title = command.textContent;
     const actions = document.createElement('div'); actions.className = 'profile-actions';
-    actions.append(button('打开', () => createSession(profile), 'primary'), button('独立窗口', () => api.newWindow(profile.id)),
-      button('编辑', () => editProfile(profile), 'quiet'), button('删除', () => {
-        if (window.confirm(`删除常用会话“${profile.name}”？已打开的终端不受影响。`)) return api.deleteProfile(profile.id);
-      }, 'quiet'));
-    card.append(title, directory, command, actions); element('profiles').append(card);
+    const open = button('打开会话', () => createSession(profile), 'primary');
+    open.insertAdjacentHTML('beforeend', '<svg viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></svg>');
+    actions.append(open, button('独立窗口', () => api.newWindow(profile.id), 'secondary'));
+    card.append(heading, directory, command, actions); element('profiles').append(card);
   }
 }
 function editProfile(profile) {
@@ -204,6 +229,8 @@ element('profile-form').onsubmit = async event => {
 element('browse-directory').onclick = async () => { try { const cwd = await api.chooseDirectory(); if (cwd) element('profile-cwd').value = cwd; } catch (error) { report(error); } };
 element('cancel-profile').onclick = () => element('profile-dialog').close();
 element('add-profile').onclick = () => editProfile();
+element('empty-add-profile').onclick = () => editProfile();
+element('profile-search').oninput = renderProfiles;
 element('home-tab').onclick = () => selectSession(null);
 element('new-tab').onclick = element('blank-terminal').onclick = () => createSession().catch(report);
 element('new-window').onclick = () => api.newWindow().catch(report);
