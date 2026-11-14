@@ -1,6 +1,6 @@
 {
   "name": "codex-cli-plus",
-  "version": "0.3.12",
+  "version": "0.3.19",
   "description": "A Windows desktop companion for Codex CLI: saved sessions, parallel terminals, and live activity status.",
   "main": "src/main.cjs",
   "author": "",
@@ -10,7 +10,7 @@
     "smoke": "electron test/smoke.cjs",
     "test:codex": "electron test/codex-live.cjs",
     "check": "node --check src/main.cjs && node --check src/preload.cjs && node --check src/renderer.js && node --check src/terminal-utils.js && node --test test/*.test.cjs",
-    "dist": "electron-builder --win portable --x64"
+    "dist": "electron-builder --win dir --x64 && powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/pack-portable.ps1"
   },
   "dependencies": {
     "@xterm/addon-fit": "^0.11.0",
@@ -36,10 +36,7 @@
     ],
     "win": {
       "icon": "assets/icon.ico",
-      "target": "portable"
-    },
-    "portable": {
-      "artifactName": "Codex-CLI-Plus-${version}.exe"
+      "target": "dir"
     }
   }
 }

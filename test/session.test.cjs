@@ -3,6 +3,41 @@ const assert = require('node:assert/strict');
 const os = require('node:os');
 const { validDirectory, dimensions, shellArguments, terminalEnvironment } = require('../src/session.cjs');
 const { ActivityTracker } = require('../src/activity.cjs');
+test('completion survives malformed OSC prefixes at every chunk boundary', () => {
+  for (const end of ['\x07', '\x1b\\']) {
+    for (const prefix of ['\x1b]0;private title', '\x1b]0;private\x18', '\x1b]0;private\x1a', '\x1b]' + 'x'.repeat(8200)]) {
+      const sequence = prefix + '\x1b]7501;state=done:app=codex' + end;
+      // Exhaust the interesting boundaries, including the oversized cutoff.
+      const splits = prefix.length > 100 ? [0, 8191, 8192, prefix.length, prefix.length + 1, sequence.length] : Array.from({length:sequence.length + 1}, (_, i) => i);
+      for (const split of splits) {
+        const tracker = new ActivityTracker(() => {});
+        tracker.output('\x1b]7501;state=working:app=codex\x07');
+        tracker.output(sequence.slice(0, split));
+        tracker.output(sequence.slice(split));
+        assert.equal(tracker.state.kind, 'agent-done', `split ${split}`);
+        assert.equal(tracker.state.busy, false);
+      }
+    }
+  }
+});
+test('diagnostics explain ignored progress without exposing terminal contents', () => {
+  const records = [];
+  const tracker = new ActivityTracker(() => {}, event => records.push(event));
+  tracker.output('\x1b]7501;state=working:app=secret-app\x07');
+  tracker.output('\x1b]9;4;0;secret-progress\x07');
+  assert.equal(tracker.state.busy, true, 'subtask progress must not finish the agent turn');
+  tracker.output('\x1b]0;secret-title\x1b]7501;state=done:app=secret-app\x07secret-answer');
+  tracker.output('\x1b]7501;state=secret-state\x07');
+  assert.equal(tracker.state.busy, false);
+  assert.ok(records.some(r => r.outcome === 'ignored-lifecycle-precedence'));
+  assert.ok(records.some(r => r.reason === 'nested-osc'));
+  assert.doesNotMatch(JSON.stringify(records), /secret/);
+});
+test('diagnostic sink failure cannot break lifecycle updates', () => {
+  const tracker = new ActivityTracker(() => {}, () => { throw new Error('disk unavailable'); });
+  tracker.output('\x1b]7501;state=working\x07\x1b]7501;state=done\x07');
+  assert.equal(tracker.state.busy, false);
+});
 const { resolveLaunch, cleanTitle } = require('../src/terminal-utils.js');
 test('a session ID generates the exact resume command, including legacy ID-only entries', () => {
   const id = '12345678-1234-4abc-8def-123456789abc';

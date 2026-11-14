@@ -22,11 +22,14 @@
 <section id="home">
 <div class="home-inner">
 <div class="home-heading"><div><div class="home-brand">Codex CLI Plus</div><h1>回到你的工作现场。</h1><p>常用会话，随时继续。每次打开都是独立终端。</p></div><button id="blank-terminal" class="primary"><svg viewBox="0 0 24 24"><path d="m5 6 6 6-6 6M13 18h6"/></svg>新建终端<kbd>Ctrl ⇧ T</kbd></button></div>
-<div class="section-toolbar"><div class="section-title"><h2>常用会话</h2><span id="profile-count">0</span></div><div class="profile-tools"><div class="search-field"><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></svg><input id="profile-search" type="search" aria-label="搜索常用会话" placeholder="搜索会话、目录或命令"></div><button id="add-profile" class="add-profile"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>添加会话</button></div></div>
-<div id="profiles"></div>
+<div class="section-toolbar"><div class="section-title"><h2>工作空间</h2><span id="profile-count">0</span></div><div class="profile-tools"><div class="search-field"><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></svg><input id="profile-search" type="search" aria-label="搜索会话与工作空间" placeholder="搜索项目、目录或会话"></div><button id="refresh-workspaces">刷新目录</button><button id="add-profile" class="add-profile"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>添加会话</button></div></div>
+<div id="tree-canvas" tabindex="0" aria-label="会话树画布，拖动空白处平移，滚轮缩放">
+<div id="tree-world"><svg id="tree-links" aria-hidden="true"></svg><div id="profiles"></div></div>
+<div class="canvas-controls"><button id="tree-minus" aria-label="缩小">−</button><span id="tree-zoom">100%</span><button id="tree-plus" aria-label="放大">+</button><button id="tree-fit">适应画布</button><button id="tree-reset">回到根节点</button></div>
+</div>
 <div id="empty-hint"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4zM8 9l3 3-3 3M13 15h3"/></svg><h2>把常用会话放在这里</h2><p>添加一个会话 ID，下次一键继续。也可以保存常用的命令行。</p><button id="empty-add-profile" class="primary">添加第一个会话</button></div>
 <p id="search-empty" hidden>没有找到匹配的会话，请试试其他关键词。</p>
-<div class="home-notes"><span>在标签页中并行工作，也可以打开独立窗口。</span><span><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>N</kbd> 新窗口</span></div>
+<div class="home-notes"><span>拖动空白处平移 · 滚轮缩放 · 按目录自动归类 · 同一项目内拖拽排序</span><span><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>N</kbd> 新窗口</span></div>
 </div>
 </section>
 <div id="panels"></div>
@@ -36,14 +39,17 @@
 <form id="profile-form"><h2 id="profile-heading">添加常用会话</h2>
 <label>会话名称<input id="profile-name" maxlength="80" placeholder="可自定义；填写会话 ID 后可留空"></label>
 <label>会话 ID <span class="muted">恢复 Codex 会话时填写</span><input id="profile-session-id" maxlength="36" autocomplete="off" spellcheck="false" placeholder="例如：12345678-1234-4abc-8def-123456789abc"></label>
-<label>工作目录 <span class="muted">可选</span><div class="directory-field"><input id="profile-cwd" placeholder="留空使用默认目录，恢复已有会话可不填"><button type="button" id="browse-directory">选择目录</button></div></label>
+<label>工作目录 <span class="muted">可选</span><div class="directory-field"><input id="profile-cwd" placeholder="留空自动识别；填写目录可手动指定工作空间"><button type="button" id="browse-directory">选择目录</button></div></label>
 <label>启动命令 <span class="muted">可选</span><input id="profile-command" maxlength="4096" placeholder="留空进入命令行，例如 codex 或 npm run dev"></label>
-<p class="muted">填写会话 ID 后自动生成恢复命令，无需指定工作目录。点击“打开”时才执行。</p>
+<p class="muted">填写会话 ID 后自动识别项目目录并生成恢复命令。手动指定目录优先；清空后恢复自动识别。点击“打开”时才执行。</p>
+<p id="workspace-preview" class="muted" role="status"></p>
 <p id="profile-error" role="alert"></p>
 <div class="dialog-actions"><button type="button" id="cancel-profile">取消</button><button class="primary" id="save-profile" type="submit">保存</button></div>
 </form></dialog>
+
 <script src="../node_modules/@xterm/xterm/lib/xterm.js"></script>
 <script src="../node_modules/@xterm/addon-fit/lib/addon-fit.js"></script>
 <script src="terminal-utils.js"></script>
+<script src="session-canvas.js"></script>
 <script src="renderer.js"></script>
 </body></html>

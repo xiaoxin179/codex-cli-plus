@@ -67,6 +67,12 @@ kbd { font-family: inherit; font-size: 10px; font-weight: 400; color: #8a97ad; b
 #profiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
 .profile { position: relative; padding: 14px; border: 1px solid #ffffff0c; border-radius: 15px; background: linear-gradient(145deg, #252c39a8, #1c212bbf); box-shadow: 0 7px 24px #00000014; min-width: 0; transition: border-color .2s, transform .2s, box-shadow .2s; }
 .profile:hover { transform: translateY(-3px); border-color: #a4eed333; box-shadow: 0 12px 28px #00000024; }
+.profile[draggable="true"] { cursor: grab; }
+.profile.dragging { opacity: .4; cursor: grabbing; transform: none; }
+.profile.drop-before, .profile.drop-after { border-color: var(--home-accent); background: #a4eed310; }
+.profile.drop-before::before, .profile.drop-after::after { content: ''; position: absolute; top: 9px; bottom: 9px; width: 3px; background: var(--home-accent); border-radius: 3px; }
+.profile.drop-before::before { left: -7px; }
+.profile.drop-after::after { right: -7px; }
 .profile-heading { display: flex; align-items: center; gap: 9px; margin-bottom: 12px; }
 .profile-icon { width: 32px; height: 32px; border-radius: 11px; display: flex; align-items: center; justify-content: center; color: #b5f1da; background: linear-gradient(140deg, #a4eed320, #72b8c40c); border: 1px solid #a4eed315; flex-shrink: 0; }
 .profile-icon svg { width: 18px; height: 18px; stroke-width: 1.8; }
@@ -120,3 +126,39 @@ dialog #profile-error { color: #f6a4b1; margin-bottom: 0; }
   #home button, .profile { transition: none; }
   .profile:hover { transform: none; }
 }
+#home { padding: 0 24px; overflow: hidden; }
+.home-inner { max-width: none; height: 100%; padding: 24px 0 12px; display: flex; flex-direction: column; }
+.home-heading { margin-bottom: 18px; }
+.home-brand { margin-bottom: 6px; }
+.home-heading h1 { font-size: 26px; margin-bottom: 4px; }
+.section-toolbar { margin-bottom: 12px; flex-wrap: wrap; }
+#tree-canvas { position: relative; flex: 1; min-height: 180px; overflow: hidden; border: 1px solid #ffffff12; border-radius: 18px; cursor: grab; touch-action: none; background-color: #131820; background-image: radial-gradient(#ffffff15 1px, transparent 1px); background-size: 24px 24px; }
+#tree-canvas.panning { cursor: grabbing; }
+#tree-world { position: absolute; transform-origin: 0 0; }
+#profiles { display: block; position: absolute; left: 0; top: 0; }
+#tree-links { position: absolute; left: 0; top: 0; pointer-events: none; overflow: visible; color: #638c82; stroke-width: 1.5; }
+.tree-node { position: absolute; width: 290px; user-select: none; cursor: grab; }
+.tree-node.profile:hover { transform: none; }
+.tree-node.profile .profile-directory, .tree-node.profile .command { display: none; }
+.tree-node.profile .profile-heading { margin-bottom: 0; }
+.tree-node.profile .profile-actions { margin-top: 10px; }
+.tree-group { background: #1c2b2c; border: 1px solid #a4eed33d; border-radius: 15px; padding: 12px; }
+.group-title { display: flex; align-items: center; height: 34px; gap: 6px; color: #c9f6e6; }
+.group-title strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#home .group-title button { min-height: 26px; padding: 2px 8px; }
+.group-actions { display: flex; gap: 6px; align-items: center; margin-top: 10px; color: #9aafa9; font-size: 11px; }
+#home .group-actions button { padding: 4px 8px; min-height: 26px; font-size: 11px; }
+.canvas-controls { position: absolute; right: 16px; bottom: 16px; display: flex; align-items: center; gap: 5px; background: #202833; padding: 5px; border: 1px solid #ffffff17; border-radius: 12px; cursor: default; }
+#home .canvas-controls button { padding: 6px 10px; min-height: 30px; font-size: 12px; }
+#tree-zoom { min-width: 42px; text-align: center; color: #a4eed3; font-size: 12px; }
+.tree-node.dragging { opacity: .35; }
+.tree-node.drop-inside { border: 2px solid #a4eed3; background: #294a40; }
+.tree-node.drop-before { border-top: 4px solid #a4eed3; }
+.tree-node.drop-after { border-bottom: 4px solid #a4eed3; }
+.tree-node.drop-before::before, .tree-node.drop-after::after { display: none; }
+.home-notes { margin-top: 10px; }
+#search-empty { position: absolute; top: 210px; left: 45%; padding: 10px; pointer-events: none; }
+@media (max-width: 850px) { .home-inner { padding-top: 16px; } .home-heading { margin-bottom: 12px; } .home-heading h1 { font-size: 22px; } .profile-tools { flex-wrap: wrap; } }
+
+.workspace-path { font-size: 11px; color: #9aafa9; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tree-group .group-actions { margin-top: 6px; }

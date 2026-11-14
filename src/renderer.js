@@ -9,6 +9,20 @@ const storedSize = Number(localStorage.getItem('terminalFontSize'));
 let fontSize = storedSize >= 8 && storedSize <= 48 ? storedSize : 14;
 function report(error) { element('status').textContent = error.message || String(error); }
 function activeSession() { return sessions.get(activeId); }
+function updateUnreadCount() {
+  api.unreadCount([...sessions.values()].filter(session => session.unreadCompletion).length);
+}
+function markActiveViewed() {
+  if (!document.hasFocus() || document.hidden) return;
+  const session = activeSession();
+  if (session?.unreadCompletion) {
+    session.unreadCompletion = false;
+    updateTabNotification(session);
+    updateUnreadCount();
+  }
+}
+window.addEventListener('focus', markActiveViewed);
+document.addEventListener('visibilitychange', markActiveViewed);
 function refit(session = activeSession()) {
   if (!session || session.panel.hidden) return;
   session.fit.fit();
@@ -37,10 +51,11 @@ function selectSession(id) {
     session.panel.hidden = session.id !== id;
     session.tab.classList.toggle('selected', session.id === id);
     session.selectButton.setAttribute('aria-selected', String(session.id === id));
-    if (session.id === id) session.unreadCompletion = false;
+    if (session.id === id && document.hasFocus() && !document.hidden) session.unreadCompletion = false;
     updateTabNotification(session);
   }
   api.active(id);
+  updateUnreadCount();
   updateStatus();
   requestAnimationFrame(() => { refit(); activeSession()?.term.focus(); });
 }
@@ -56,12 +71,13 @@ function updateActivity(session, activity) {
   const completed = activity.kind === 'agent-done' ||
     (session.activity.busy && activity.kind === 'reported' && !activity.busy);
   if (activity.busy) session.unreadCompletion = false;
-  else if (completed && session.id !== activeId) session.unreadCompletion = true;
+  else if (completed && (session.id !== activeId || !document.hasFocus() || document.hidden)) session.unreadCompletion = true;
   session.activity = activity;
   session.indicator.classList.toggle('busy', activity.busy);
   session.indicator.classList.toggle('ended', !session.alive);
   session.indicator.title = activity.label;
   updateTabNotification(session);
+  updateUnreadCount();
   if (session.id === activeId) updateStatus();
 }
 function updateTitle(session, title) {
@@ -97,6 +113,7 @@ async function closeSession(id, force = false) {
   if (!force && session.alive && !window.confirm(`关闭“${session.title}”？其中运行的程序也会结束。`)) return;
   await api.close(id);
   closed.add(id); pending.delete(id); sessions.delete(id);
+  updateUnreadCount();
   session.term.dispose(); session.panel.remove(); session.tab.remove();
   if (activeId === id) selectSession([...sessions.keys()].at(-1) || null);
   else updateStatus();
@@ -136,6 +153,15 @@ async function createSession(profile) {
     term.onData(data => { if (session.alive) api.input(session.id, data); });
     term.onTitleChange(title => updateTitle(session, title));
     term.attachCustomKeyEventHandler(event => {
+      // xterm's legacy Enter encoding drops Shift. Preserve the modifier for
+      // TUI applications (including Codex) using the CSI-u keyboard encoding.
+      if (event.code === 'Enter' && event.shiftKey && !event.ctrlKey && !event.altKey && !event.metaKey && !event.isComposing) {
+        if (event.type === 'keydown') {
+          event.preventDefault();
+          if (session.alive) api.input(session.id, '\x1b[13;2u');
+        }
+        return false;
+      }
       if (event.type !== 'keydown' || !event.ctrlKey) return true;
       if (event.shiftKey && event.code === 'KeyC') {
         if (term.hasSelection()) navigator.clipboard.writeText(term.getSelection()).catch(report);
@@ -168,13 +194,12 @@ function button(text, action, className = '') {
 }
 function renderProfiles() {
   element('profiles').replaceChildren();
-  element('empty-hint').hidden = settings.profiles.length > 0;
-  element('profile-count').textContent = settings.profiles.length;
-  const query = element('profile-search').value.trim().toLocaleLowerCase();
-  const profiles = settings.profiles.filter(profile => [profile.name, profile.cwd, profile.command, profile.sessionId].some(value => value?.toLocaleLowerCase().includes(query)));
-  element('search-empty').hidden = !settings.profiles.length || profiles.length > 0;
-  for (const profile of profiles) {
+  element('empty-hint').hidden = true;
+  element('profile-count').textContent = `${(settings.tree || []).filter(n => n.type === 'group').length} 个项目 · ${settings.profiles.length} 个会话`;
+  const cards = new Map();
+  for (const profile of settings.profiles) {
     const card = document.createElement('article'); card.className = `profile${profile.sessionId ? ' codex-profile' : profile.command ? ' command-profile' : ''}`;
+    card.dataset.profileId = profile.id;
     const heading = document.createElement('div'); heading.className = 'profile-heading';
     const icon = document.createElement('div'); icon.className = 'profile-icon';
     icon.innerHTML = profile.sessionId
@@ -197,14 +222,15 @@ function renderProfiles() {
     remove.title = '删除会话'; remove.setAttribute('aria-label', `删除 ${profile.name}`);
     tools.append(edit, remove); heading.append(tools);
     const directory = document.createElement('p'); directory.textContent = profile.cwd || '未指定工作目录';
-    directory.className = 'profile-directory'; directory.textContent = profile.cwd || '使用默认工作目录'; directory.title = directory.textContent;
+    directory.className = 'profile-directory'; directory.textContent = profile.cwd || profile.workspaceCwd || '待归类'; directory.title = directory.textContent;
     const command = document.createElement('p'); command.className = 'command'; command.textContent = profile.command || '进入 PowerShell 命令行'; command.title = command.textContent;
     const actions = document.createElement('div'); actions.className = 'profile-actions';
     const open = button('打开会话', () => createSession(profile), 'primary');
     open.insertAdjacentHTML('beforeend', '<svg viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></svg>');
     actions.append(open, button('独立窗口', () => api.newWindow(profile.id), 'secondary'));
-    card.append(heading, directory, command, actions); element('profiles').append(card);
+    card.append(heading, directory, command, actions); cards.set(profile.id, card);
   }
+  sessionCanvas.render(settings, cards);
 }
 function editProfile(profile) {
   editingId = profile?.id || null;
@@ -215,6 +241,7 @@ function editProfile(profile) {
   element('profile-command').readOnly = false;
   element('profile-command').value = profile?.sessionId ? '' : profile?.command || '';
   updateLaunchPreview();
+  previewWorkspace();
   element('profile-error').textContent = '';
   element('profile-dialog').showModal();
 }
@@ -234,7 +261,30 @@ function updateLaunchPreview() {
     command.placeholder = '留空进入命令行，例如 codex 或 npm run dev';
   }
 }
-element('profile-session-id').oninput = updateLaunchPreview;
+let lookupVersion = 0, lookupTimer;
+async function previewWorkspace() {
+  const version = ++lookupVersion;
+  const explicit = element('profile-cwd').value.trim();
+  const id = element('profile-session-id').value.trim();
+  const output = element('workspace-preview');
+  if (explicit) { output.textContent = `工作空间（手动指定）：${explicit}`; return; }
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) { output.textContent = '未指定目录的入口会放入“待归类”。'; return; }
+  output.textContent = '正在识别工作空间…';
+  try {
+    const cwd = await api.lookupWorkspace(id);
+    if (version === lookupVersion) output.textContent = cwd ? `工作空间（自动识别）：${cwd}` : '未找到本地目录，将放入“待归类”；也可手动选择目录。';
+  } catch (error) { if (version === lookupVersion) output.textContent = error.message; }
+}
+element('profile-session-id').oninput = () => {
+  updateLaunchPreview(); ++lookupVersion; clearTimeout(lookupTimer);
+  lookupTimer = setTimeout(previewWorkspace, 300);
+};
+element('profile-cwd').oninput = previewWorkspace;
+element('refresh-workspaces').onclick = async () => {
+  const button = element('refresh-workspaces'); button.disabled = true; button.textContent = '识别中…';
+  try { await api.refreshWorkspaces(); } catch (error) { report(error); }
+  finally { button.disabled = false; button.textContent = '刷新目录'; }
+};
 element('profile-form').onsubmit = async event => {
   event.preventDefault(); element('save-profile').disabled = true;
   try {
@@ -243,7 +293,7 @@ element('profile-form').onsubmit = async event => {
   } catch (error) { element('profile-error').textContent = error.message; }
   finally { element('save-profile').disabled = false; }
 };
-element('browse-directory').onclick = async () => { try { const cwd = await api.chooseDirectory(); if (cwd) element('profile-cwd').value = cwd; } catch (error) { report(error); } };
+element('browse-directory').onclick = async () => { try { const cwd = await api.chooseDirectory(); if (cwd) { element('profile-cwd').value = cwd; previewWorkspace(); } } catch (error) { report(error); } };
 element('cancel-profile').onclick = () => element('profile-dialog').close();
 element('add-profile').onclick = () => editProfile();
 element('empty-add-profile').onclick = () => editProfile();
@@ -252,10 +302,10 @@ element('home-tab').onclick = () => selectSession(null);
 element('new-tab').onclick = element('blank-terminal').onclick = () => createSession().catch(report);
 element('new-window').onclick = () => api.newWindow().catch(report);
 element('icon-button').onclick = () => { element('settings-menu').open = false; api.chooseIcon().catch(report); };
-api.onProfiles(profiles => { settings.profiles = profiles; renderProfiles(); });
+api.onTree(value => { settings.profiles = value.profiles; settings.tree = value.tree; renderProfiles(); });
 new ResizeObserver(() => refit()).observe(element('workspace'));
 document.addEventListener('keydown', event => {
-  if (!event.ctrlKey || !event.shiftKey || element('profile-dialog').open) return;
+  if (!event.ctrlKey || !event.shiftKey || document.querySelector('dialog[open]')) return;
   if (!['KeyT', 'KeyN', 'KeyH', 'KeyW'].includes(event.code)) return;
   event.preventDefault(); event.stopImmediatePropagation();
   if (event.code === 'KeyT') createSession().catch(report);
@@ -265,5 +315,6 @@ document.addEventListener('keydown', event => {
 }, true);
 api.settings().then(value => {
   settings = value; renderProfiles(); selectSession(null);
+  requestAnimationFrame(() => api.ready());
   if (value.initialProfile) return createSession(value.initialProfile);
 }).catch(report);

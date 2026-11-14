@@ -7,10 +7,15 @@ process.env.TERMINAL_TEST = '1';
 process.env.NO_COLOR = '1';
 process.env.FORCE_COLOR = '0';
 process.env.TERM = 'dumb';
-const profileDir = path.join(__dirname, '../artifacts/smoke-profile-v3');
+const profileDir = path.join(__dirname, `../artifacts/smoke-profile-${process.pid}`);
 fs.mkdirSync(profileDir, { recursive: true });
 const stubDir = path.join(profileDir, 'bin');
 fs.mkdirSync(stubDir, {recursive:true});
+if (process.env.SMOKE_NODE) {
+  fs.writeFileSync(path.join(stubDir, 'node.cmd'), `@echo off\r\n"${process.env.SMOKE_NODE}" %*\r\n`);
+} else {
+  fs.rmSync(path.join(stubDir, 'node.cmd'), {force:true});
+}
 const argvFile = path.join(profileDir, 'resume-argv.json');
 fs.rmSync(argvFile, {force:true});
 process.env.TERMINAL_ARGV_FILE = argvFile;
@@ -18,6 +23,12 @@ process.env.PATH = stubDir + path.delimiter + process.env.PATH;
 fs.writeFileSync(path.join(stubDir, 'codex.cmd'), `@echo off\r\nnode "${path.join(__dirname,'argv-fixture.cjs')}" %*\r\n`);
 fs.writeFileSync(path.join(profileDir, 'settings.json'), JSON.stringify({ profiles: [] }));
 app.setPath('userData', profileDir);
+const overlays = new Map();
+const nativeOverlay = BrowserWindow.prototype.setOverlayIcon;
+BrowserWindow.prototype.setOverlayIcon = function (image, description) {
+  overlays.set(this.id, { description, empty: !image || image.isEmpty() });
+  return nativeOverlay.call(this, image, description);
+};
 require(process.env.SMOKE_APP || '../src/main.cjs');
 const timeout = setTimeout(() => { console.error('Smoke test timed out'); app.quit(); app.exit(1); }, 65000);
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -39,7 +50,10 @@ async function waitTitle(win, text) {
 app.whenReady().then(async () => {
   const win = BrowserWindow.getAllWindows()[0];
   const errors = [];
-  win.webContents.on('console-message', (_event, details) => { if (details.level === 'error') errors.push(details.message); });
+  win.webContents.on('console-message', (_event, level, message) => {
+    const details = typeof level === 'object' ? level : {level: level === 3 ? 'error' : level, message};
+    if (details.level === 'error') { errors.push(details.message); console.error('Renderer:', details.message); }
+  });
   await waitFor(win, "typeof settings !== 'undefined' && settings.cwd && !document.getElementById('home').hidden", 'home');
   assert.equal(await win.webContents.executeJavaScript('sessions.size'), 0);
   const first = await win.webContents.executeJavaScript('(async()=>{const s=await createSession(); return {id:s.id,pid:s.pid}})()');
@@ -89,7 +103,7 @@ app.whenReady().then(async () => {
       const cell=line.getCell(0);
       return {palette:cell.isFgPalette(),rgb:cell.isFgRGB(),color:cell.getFgColor(),bold:Boolean(cell.isBold()),italic:Boolean(cell.isItalic()),underline:Boolean(cell.isUnderline())};
     };
-    if(!lines.some(l=>l.translateToString(true)==='NO_COLOR=unset')) throw new Error('NO_COLOR leaked into terminal');
+    if(!lines.some(l=>l.translateToString(true).endsWith('NO_COLOR=unset'))) throw new Error('NO_COLOR leaked into terminal');
     if(!lines.some(l=>l.translateToString(true)==='COLOR_DEPTH=24')) throw new Error('Truecolor auto-detection failed');
     return {auto:sample('AUTO_COLOR'),red:sample('ANSI16_RED'),bright:sample('ANSI16_BRIGHT_RED'),indexed:sample('ANSI256_RED'),rgb:sample('TRUECOLOR_GREEN'),style:sample('BOLD_ITALIC_UNDERLINE')};
   })()`);
@@ -143,6 +157,23 @@ app.whenReady().then(async () => {
   assert.notEqual(await win.webContents.executeJavaScript('fontSize'), 14);
   assert.equal(win.webContents.getZoomFactor(), 1);
   await win.webContents.executeJavaScript('setFontSize(14)');
+  // Verify native key dispatch through xterm, before the IPC/PTY boundary.
+  // The custom handler sends through the context bridge directly. Capture the
+  // main-process input event without sending a test question to an agent.
+  const { ipcMain } = require('electron');
+  const keyInputs = [];
+  const captureInput = (_event, value) => keyInputs.push(value.data);
+  ipcMain.on('terminal:input', captureInput);
+  win.webContents.sendInputEvent({type:'keyDown',keyCode:'Return',modifiers:['shift']});
+  win.webContents.sendInputEvent({type:'keyUp',keyCode:'Return',modifiers:['shift']});
+  await delay(150);
+  assert.deepEqual(keyInputs, ['\x1b[13;2u'], 'Shift+Enter must preserve its modifier and never send CR');
+  keyInputs.length = 0;
+  win.webContents.sendInputEvent({type:'keyDown',keyCode:'Return'});
+  win.webContents.sendInputEvent({type:'keyUp',keyCode:'Return'});
+  await delay(150);
+  assert.deepEqual(keyInputs, ['\r'], 'plain Enter still submits');
+  ipcMain.removeListener('terminal:input', captureInput);
   // Exercise native Agent progress OSC over a real PTY, not just the parser.
   await win.webContents.executeJavaScript(`api.input('${second.id}', "[Console]::Write(([string][char]27)+']9;4;3'+[char]7); Start-Sleep -Seconds 2; [Console]::Write(([string][char]27)+']9;4;0'+[char]7)\\r")`);
   await waitFor(win, `sessions.get('${second.id}').activity.kind === 'reported' && sessions.get('${second.id}').activity.busy`, 'agent progress start');
@@ -186,7 +217,34 @@ app.whenReady().then(async () => {
     if (s.unreadCompletion) throw new Error('Failed work must not notify completion');
     selectSession('${second.id}');
   })()`);
+  // Real PTY completions must notify even for the selected tab when unfocused.
+  other.hide(); win.hide();
+  await waitFor(win, '!document.hasFocus()', 'application unfocused');
+  for (const id of [second.id, notificationViewer]) {
+    await win.webContents.executeJavaScript(`api.input(${JSON.stringify(id)}, ${JSON.stringify(completionCommand)})`);
+  }
+  await waitFor(win, `[${JSON.stringify(second.id)},${JSON.stringify(notificationViewer)}].every(id => sessions.get(id).unreadCompletion)`, 'two unseen completions');
+  for (let i = 0; i < 50 && !overlays.get(win.id)?.description.startsWith('2 '); i++) await delay(100);
+  assert.deepEqual(overlays.get(win.id), {description:'2 个会话回复已完成，未查看', empty:false});
+  assert.deepEqual(overlays.get(other.id), overlays.get(win.id));
+  await win.webContents.executeJavaScript(`updateActivity(sessions.get('${second.id}'), {busy:false,kind:'agent-done',label:'已完成'})`);
+  await delay(100);
+  assert.match(overlays.get(win.id).description, /^2 /, 'duplicate completion counts once');
+  win.show(); win.focus();
+  await waitFor(win, `document.hasFocus() && !sessions.get('${second.id}').unreadCompletion`, 'view selected completion');
+  for (let i = 0; i < 50 && !overlays.get(win.id)?.description.startsWith('1 '); i++) await delay(100);
+  assert.match(overlays.get(win.id).description, /^1 /);
+  assert.equal(await win.webContents.executeJavaScript(`sessions.get('${notificationViewer}').unreadCompletion`), true);
+  await win.webContents.executeJavaScript(`selectSession('${notificationViewer}')`);
+  for (let i = 0; i < 50 && !overlays.get(win.id)?.empty; i++) await delay(100);
+  assert.deepEqual(overlays.get(win.id), {description:'',empty:true});
+  assert.deepEqual(overlays.get(other.id), overlays.get(win.id));
+  await win.webContents.executeJavaScript(`selectSession(null);updateActivity(sessions.get('${notificationViewer}'), {busy:false,kind:'agent-done',label:'已完成'})`);
+  for (let i = 0; i < 50 && !overlays.get(win.id)?.description.startsWith('1 '); i++) await delay(100);
+  assert.match(overlays.get(win.id).description, /^1 /);
   await win.webContents.executeJavaScript(`closeSession('${notificationViewer}', true)`);
+  for (let i = 0; i < 50 && !overlays.get(win.id)?.empty; i++) await delay(100);
+  assert.equal(overlays.get(win.id).empty, true, 'closing unread session clears badge');
   await win.webContents.executeJavaScript(`api.deleteProfile('${saved.id}')`);
   await waitFor(other, 'settings.profiles.length === 0', 'cross-window profile sync');
   const resumeId = '12345678-1234-4abc-8def-123456789abc';
@@ -211,4 +269,4 @@ app.whenReady().then(async () => {
   assert.deepEqual(errors, []);
   console.log(JSON.stringify({ home:true, independentPTYs:true, backgroundSpinner:true, silentWork:true, completion:true, profilesPersisted:true, independentWindows:true, closeIsolation:true, ctrlWheel:true, nativeAgentProgress:true, profileSync:true, autoColors:true, ansi16:true, ansi256:true, truecolor:true, textStyles:true, dynamicTitles:true, backgroundTitleIsolation:true, rendererErrors:0 }));
   clearTimeout(timeout); app.quit();
-}).catch(error => { console.error(error); app.quit(); app.exit(1); });
+}).catch(error => { console.error(error); for (const win of BrowserWindow.getAllWindows()) win.destroy(); app.exit(1); });

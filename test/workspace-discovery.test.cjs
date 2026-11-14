@@ -1,0 +1,21 @@
+﻿const {test}=require('node:test');
+const assert=require('node:assert/strict');
+const fs=require('node:fs'),os=require('node:os'),path=require('node:path');
+const {createDiscovery,sessionId}=require('../src/workspace-discovery.cjs');
+const id='11111111-1111-4111-8111-111111111111';
+const record=(type,payload,timestamp='2026-11-14T01:00:00Z')=>JSON.stringify({timestamp,type,payload})+'\n';
+test('latest recorded cwd, archived logs, corrupt lines, legacy command and cache invalidation',async t=>{
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),'workspace-discovery-'));
+ t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+ fs.mkdirSync(path.join(root,'archived_sessions'));
+ const file=path.join(root,'archived_sessions',`rollout-${id}.jsonl`);
+ fs.writeFileSync(file,record('session_meta',{id,cwd:'C:\\old'})+'broken\n'+record('turn_context',{cwd:'C:\\new'},'2026-11-14T02:00:00Z'));
+ const discover=createDiscovery(root),profile={sessionId:id};
+ assert.equal((await discover([profile])).get(id).cwd,'C:\\new');
+ fs.appendFileSync(file,record('turn_context',{cwd:'C:\\latest'},'2026-11-14T03:00:00Z')+'{"type":');
+ assert.equal((await discover([profile])).get(id).cwd,'C:\\latest');
+ assert.equal(sessionId({command:`codex --no-daemon resume ${id}`}),id);
+ assert.equal((await discover([{sessionId:'22222222-2222-4222-8222-222222222222'}])).size,0);
+ fs.writeFileSync(file,record('session_meta',{id:'wrong',cwd:'C:\\wrong'}));
+ assert.equal((await discover([profile])).size,0);
+});
