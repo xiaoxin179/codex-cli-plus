@@ -19,3 +19,15 @@ test('latest recorded cwd, archived logs, corrupt lines, legacy command and cach
  fs.writeFileSync(file,record('session_meta',{id:'wrong',cwd:'C:\\wrong'}));
  assert.equal((await discover([profile])).size,0);
 });
+const {test: regression}=require('node:test');
+regression('BOM and reordered JSON fields do not hide valid session metadata',async t=>{
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),'workspace-format-'));
+ t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+ fs.mkdirSync(path.join(root,'sessions'));
+ const file=path.join(root,'sessions',`rollout-${id}.jsonl`);
+ fs.writeFileSync(file,'\uFEFF'+JSON.stringify({padding:'x'.repeat(300),payload:{id,cwd:'C:\\project'},type:'session_meta'})+'\n');
+ const discover=createDiscovery(root);
+ assert.equal((await discover([{sessionId:id}])).get(id).cwd,'C:\\project');
+ const missing='33333333-3333-4333-8333-333333333333';
+ assert.ok((await discover([{sessionId:missing}])).errors.get(missing));
+});

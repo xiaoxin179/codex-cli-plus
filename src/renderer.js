@@ -150,6 +150,9 @@ async function createSession(profile) {
     sessions.set(result.id, session);
     selectButton.onclick = () => selectSession(result.id);
     close.onclick = () => closeSession(result.id).catch(report);
+    tab.addEventListener('contextmenu', event => {
+      event.preventDefault(); showSessionMenu(session, event.clientX, event.clientY);
+    });
     term.onData(data => { if (session.alive) api.input(session.id, data); });
     term.onTitleChange(title => updateTitle(session, title));
     term.attachCustomKeyEventHandler(event => {
@@ -192,6 +195,31 @@ function button(text, action, className = '') {
   b.onclick = () => Promise.resolve().then(action).catch(report);
   return b;
 }
+const sessionMenu = document.createElement('div');
+sessionMenu.id = 'session-context-menu'; sessionMenu.hidden = true; sessionMenu.setAttribute('role', 'menu');
+document.body.append(sessionMenu);
+function hideSessionMenu() { sessionMenu.hidden = true; }
+document.addEventListener('pointerdown', event => { if (!sessionMenu.contains(event.target)) hideSessionMenu(); });
+document.addEventListener('keydown', event => { if (event.key === 'Escape') hideSessionMenu(); });
+window.addEventListener('blur', hideSessionMenu);
+window.addEventListener('resize', hideSessionMenu);
+function showSessionMenu(session, x, y) {
+  const item = button('添加到常用会话', () => addSessionFavorite(session));
+  item.setAttribute('role', 'menuitem'); sessionMenu.replaceChildren(item); sessionMenu.hidden = false;
+  sessionMenu.style.left = `${Math.max(0, Math.min(x, window.innerWidth - sessionMenu.offsetWidth))}px`;
+  sessionMenu.style.top = `${Math.max(0, Math.min(y, window.innerHeight - sessionMenu.offsetHeight))}px`;
+  item.focus();
+}
+function addSessionFavorite(session) {
+  hideSessionMenu();
+  if (document.querySelector('dialog[open]')) return;
+  editProfile({ name: session.title });
+  element('profile-heading').textContent = '添加到常用会话';
+  element('profile-session-id').required = true;
+  element('profile-error').textContent = '请填写当前会话 ID；不知道时可以询问当前 Codex 对话。填写后自动匹配工作空间。';
+  element('profile-session-id').focus();
+}
+element('profile-dialog').addEventListener('close', () => { ++lookupVersion; clearTimeout(lookupTimer); });
 function renderProfiles() {
   element('profiles').replaceChildren();
   element('empty-hint').hidden = true;
@@ -211,6 +239,10 @@ function renderProfiles() {
     const title = document.createElement('h2'); title.textContent = profile.name; title.title = profile.name;
     const kind = document.createElement('span'); kind.className = 'profile-kind'; kind.textContent = profile.sessionId ? 'Codex 会话' : profile.command ? '自定义命令' : 'PowerShell';
     names.append(title, kind); heading.append(icon, names);
+    if (profile.workspaceError && !profile.cwd) {
+      kind.textContent = profile.workspaceCwd ? '目录读取失败，保留上次归属' : '目录未识别';
+      kind.title = profile.workspaceError;
+    }
     const tools = document.createElement('div'); tools.className = 'card-tools';
     const edit = button('', () => editProfile(profile), 'quiet');
     edit.innerHTML = '<svg viewBox="0 0 24 24"><path d="m15 4 5 5M4 20l5-1L20 8a2 2 0 0 0-5-5L4 14z"/></svg>';
@@ -233,6 +265,7 @@ function renderProfiles() {
   sessionCanvas.render(settings, cards);
 }
 function editProfile(profile) {
+  element('profile-session-id').required = false;
   editingId = profile?.id || null;
   element('profile-heading').textContent = profile ? '编辑常用会话' : '添加常用会话';
   element('profile-name').value = profile?.name || '';
@@ -282,13 +315,16 @@ element('profile-session-id').oninput = () => {
 element('profile-cwd').oninput = previewWorkspace;
 element('refresh-workspaces').onclick = async () => {
   const button = element('refresh-workspaces'); button.disabled = true; button.textContent = '识别中…';
-  try { await api.refreshWorkspaces(); } catch (error) { report(error); }
+  try {
+    const result = await api.refreshWorkspaces();
+    element('status').textContent = `目录刷新完成：${result.identified} 个已归类，${result.unresolved} 个待归类。未识别原因可悬停会话状态查看。`;
+  } catch (error) { report(error); }
   finally { button.disabled = false; button.textContent = '刷新目录'; }
 };
 element('profile-form').onsubmit = async event => {
   event.preventDefault(); element('save-profile').disabled = true;
   try {
-    await api.saveProfile({ id: editingId, name: element('profile-name').value, sessionId: element('profile-session-id').value, cwd: element('profile-cwd').value, command: element('profile-command').value });
+    await api.saveProfile({ favorite: element('profile-session-id').required, id: editingId, name: element('profile-name').value, sessionId: element('profile-session-id').value, cwd: element('profile-cwd').value, command: element('profile-command').value });
     element('profile-dialog').close();
   } catch (error) { element('profile-error').textContent = error.message; }
   finally { element('save-profile').disabled = false; }

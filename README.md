@@ -1,4 +1,4 @@
-﻿# Codex CLI Plus
+# Codex CLI Plus
 
 **给 Codex CLI 一个独立的 Windows 入口，把常用会话、并行终端和工作状态放在同一个窗口里。**
 
@@ -57,7 +57,7 @@ codex --no-daemon resume <会话ID>
 从 [GitHub Releases](https://github.com/xiaoxin179/codex-cli-plus/releases/latest) 下载 Windows x64 便携版，双击即可启动。也可以打开本地构建产物：
 
 ```text
-dist/Codex-CLI-Plus-0.3.19.exe
+dist/Codex-CLI-Plus-0.3.22.exe
 ```
 
 应用启动后进入首页，不会自动打开 Codex。运行环境为 Windows 10 / 11，当前在 Windows 11 上验证。
@@ -77,6 +77,12 @@ dist/Codex-CLI-Plus-0.3.19.exe
 目录来自本地 Codex 记录中最近一次 `turn_context.cwd`，没有该记录时使用 `session_meta.cwd`。手动填写的工作目录优先；清空手动目录后恢复自动识别。找不到记录且未指定目录的入口进入“待归类”，不会猜测项目。
 
 项目节点显示目录与会话数，支持展开、收起。搜索会显示匹配会话及其所在项目，即使项目原本折叠也能找到。清空搜索后恢复折叠状态。原有多层分组自动转换为项目与会话两级结构，保留会话名称、ID 和启动命令。
+
+### 从当前会话添加到首页
+
+在顶部会话标签上右键，选择“添加到常用会话”。名称自动带入，用户手动填写当前会话 ID（可询问当前 Codex 对话获取）。填写后自动读取本地记录中的工作目录，在弹窗中显示工作空间，确认保存后加入首页。
+
+无需扫描进程或会话锁，后台服务模式也可使用。找不到本地目录时可手动选择；同一 ID 已收藏时更新原入口，不重复添加。
 
 ### 新开终端或启动服务
 

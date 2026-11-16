@@ -179,10 +179,11 @@ function refreshWorkspaces() {
     for (const profile of settings.profiles) {
       const value = found.get(sessionId(profile));
       if (value) profile.workspaceCwd = value.cwd;
+      profile.workspaceError = value ? '' : found.errors.get(sessionId(profile)) || '';
     }
     settings.tree = sessionTree.normalize(settings.tree, settings.profiles);
     saveSettings(); broadcastProfiles();
-    return settings.tree;
+    return { identified: settings.profiles.filter(p => p.cwd || p.workspaceCwd).length, unresolved: settings.profiles.filter(p => !p.cwd && !p.workspaceCwd).length };
   })().finally(() => { refreshPending = null; });
   return refreshPending;
 }
@@ -203,6 +204,11 @@ ipcMain.handle('tree:change', (event, input = {}) => {
 ipcMain.handle('profile:save', async (event, input = {}) => {
   owner(event);
   const launch = resolveLaunch(input);
+  if (input.favorite && !launch.sessionId) throw new Error('请填写当前会话 ID');
+  if (input.favorite && !input.id) {
+    const existing = settings.profiles.find(p => sessionId(p) === launch.sessionId.toLowerCase());
+    if (existing) input = { ...input, id: existing.id };
+  }
   const name = (typeof input.name === 'string' ? input.name.trim() : '') || (launch.sessionId ? `Codex · ${launch.sessionId.slice(0, 8)}` : '');
   if (!name) throw new Error('请填写会话名称或会话 ID');
   const cwd = typeof input.cwd === 'string' ? input.cwd.trim() : '';
@@ -210,6 +216,7 @@ ipcMain.handle('profile:save', async (event, input = {}) => {
   const profile = { id: settings.profiles.some(p => p.id === input.id) ? input.id : randomUUID(), name: name.slice(0, 80), cwd, ...launch };
   const found = await discover([profile]);
   profile.workspaceCwd = found.get(sessionId(profile))?.cwd || '';
+  profile.workspaceError = found.errors.get(sessionId(profile)) || '';
     const existingIndex = settings.profiles.findIndex(p => p.id === profile.id);
     if (existingIndex < 0) settings.profiles.push(profile);
     else settings.profiles[existingIndex] = profile;
